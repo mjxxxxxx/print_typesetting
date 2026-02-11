@@ -11,6 +11,31 @@ import html2canvas from 'html2canvas';
 
 const { Title, Text } = Typography;
 
+// Helper to format cell value to string
+const formatCellValue = (val: any): string => {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') return String(val);
+    
+    // Handle Arrays (MultiSelect, User, etc.)
+    if (Array.isArray(val)) {
+        return val.map(item => {
+            if (typeof item === 'string') return item;
+            if (item && typeof item === 'object') {
+                // Common properties for name/text
+                return item.name || item.text || item.fullAddress || JSON.stringify(item);
+            }
+            return String(item);
+        }).join(', ');
+    }
+    
+    // Handle Objects (SingleSelect, User, Location, etc.)
+    if (typeof val === 'object') {
+        return val.name || val.text || val.fullAddress || val.value || JSON.stringify(val);
+    }
+    
+    return String(val);
+};
+
 export default function App() {
   const [table, setTable] = useState<ITable | null>(null);
   const [fields, setFields] = useState<IField[]>([]);
@@ -66,11 +91,15 @@ export default function App() {
       
       for (const field of fields) {
         const name = await field.getName();
-        // Get simple string value for replacement
-        // Note: Complex fields like Attachment, Multi-select might need special handling
-        // Use field.getCellString for better compatibility
-        const val = await field.getCellString(selection.recordId);
-        recordData[name] = val;
+        // Fallback to getCellValue and manual formatting if getCellString fails
+        try {
+            // Try to get raw value
+            const val = await table.getCellValue(field.id, selection.recordId);
+            recordData[name] = formatCellValue(val);
+        } catch (e) {
+            console.warn(`Failed to get value for field ${name}`, e);
+            recordData[name] = '';
+        }
       }
 
       setStatus('正在生成Word文档...');
