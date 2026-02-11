@@ -64,9 +64,23 @@ export default function App() {
     init();
   }, []);
 
-  const handleFileUpload = (file: File) => {
-    setTemplateFile(file);
+  const handleFileUpload = (files: any) => {
+    // Semi UI Upload onFileChange returns { fileList, currentFile } or array depending on usage
+    // But beforeUpload returns false, so we handle file object directly
+    // Let's check what we get. Semi UI beforeUpload receives the File object.
+    // If we use onChange, we get fileList.
+    // Let's update the Upload component usage.
     return false; // Prevent auto upload
+  };
+
+  const onFileChange = (info: any) => {
+      if (info.fileList && info.fileList.length > 0) {
+          // Get the origin File object from Semi UI file wrapper
+          const file = info.fileList[0].fileInstance || info.fileList[0];
+          setTemplateFile(file);
+      } else {
+          setTemplateFile(null);
+      }
   };
 
   const generateAndExport = async () => {
@@ -237,6 +251,7 @@ export default function App() {
             <Upload
                 action=""
                 beforeUpload={handleFileUpload}
+                onChange={onFileChange}
                 limit={1}
                 fileList={templateFile ? [{ uid: '1', name: templateFile.name, status: 'success', size: templateFile.size, type: templateFile.type }] : []}
                 onRemove={() => setTemplateFile(null)}
