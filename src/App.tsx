@@ -129,6 +129,7 @@ export default function App() {
             const doc = new Docxtemplater(zip, {
                 paragraphLoop: true,
                 linebreaks: true,
+                nullGetter: () => { return ""; } // return empty string for missing values instead of throwing error
             });
 
             try {
