@@ -68,8 +68,8 @@ export default function App() {
         const name = await field.getName();
         // Get simple string value for replacement
         // Note: Complex fields like Attachment, Multi-select might need special handling
-        // Use table.getCellString for better compatibility
-        const val = await table.getCellString(field.id, selection.recordId);
+        // Use field.getCellString for better compatibility
+        const val = await field.getCellString(selection.recordId);
         recordData[name] = val;
       }
 
