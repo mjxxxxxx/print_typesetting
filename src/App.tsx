@@ -131,7 +131,19 @@ export default function App() {
                 linebreaks: true,
             });
 
-            doc.render(recordData);
+            try {
+                doc.render(recordData);
+            } catch (error: any) {
+                // Catch rendering errors
+                if (error.properties && error.properties.errors instanceof Array) {
+                    const errorMessages = error.properties.errors.map(function (error: any) {
+                        return error.properties.explanation;
+                    }).join("\n");
+                    console.log('errorMessages', errorMessages);
+                    throw new Error(`模板渲染错误: ${errorMessages}`);
+                }
+                throw error;
+            }
 
             const docxBlob = doc.getZip().generate({
                 type: 'blob',
