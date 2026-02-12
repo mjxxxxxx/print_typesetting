@@ -1,15 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { bitable } from '@lark-base-open/js-sdk';
-import type { IField, ITable } from '@lark-base-open/js-sdk';
-import { Button, Toast, Upload, Typography, Card, Space, Spin } from '@douyinfe/semi-ui';
-import { IconUpload, IconFile } from '@douyinfe/semi-icons';
+import { Button, Toast, Upload, Typography, Card, Space, Spin, Modal, TextArea } from '@douyinfe/semi-ui';
+import { IconUpload, IconFile, IconHelpCircle } from '@douyinfe/semi-icons';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { renderAsync } from 'docx-preview';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 // Helper to format cell value to string
 const formatCellValue = (val: any): string => {
@@ -42,6 +39,8 @@ export default function App() {
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
+  const [debugData, setDebugData] = useState<string>('');
+  const [showDebug, setShowDebug] = useState(false);
   
   // Hidden container for rendering docx to generate PDF
   const previewRef = useRef<HTMLDivElement>(null);
@@ -65,17 +64,11 @@ export default function App() {
   }, []);
 
   const handleFileUpload = (files: any) => {
-    // Semi UI Upload onFileChange returns { fileList, currentFile } or array depending on usage
-    // But beforeUpload returns false, so we handle file object directly
-    // Let's check what we get. Semi UI beforeUpload receives the File object.
-    // If we use onChange, we get fileList.
-    // Let's update the Upload component usage.
     return false; // Prevent auto upload
   };
 
   const onFileChange = (info: any) => {
       if (info.fileList && info.fileList.length > 0) {
-          // Get the origin File object from Semi UI file wrapper
           const file = info.fileList[0].fileInstance || info.fileList[0];
           setTemplateFile(file);
       } else {
@@ -115,6 +108,9 @@ export default function App() {
             recordData[name] = '';
         }
       }
+      
+      // Store debug data
+      setDebugData(JSON.stringify(recordData, null, 2));
 
       setStatus('正在生成Word文档...');
       
@@ -129,21 +125,23 @@ export default function App() {
             const doc = new Docxtemplater(zip, {
                 paragraphLoop: true,
                 linebreaks: true,
-                nullGetter: () => { return ""; } // return empty string for missing values instead of throwing error
+                nullGetter: () => { return ""; } // return empty string for missing values
             });
 
             try {
                 doc.render(recordData);
             } catch (error: any) {
-                // Catch rendering errors
+                // Improved error handling
+                let errorMsg = error.message;
                 if (error.properties && error.properties.errors instanceof Array) {
                     const errorMessages = error.properties.errors.map(function (error: any) {
                         return error.properties.explanation;
                     }).join("\n");
-                    console.log('errorMessages', errorMessages);
-                    throw new Error(`模板渲染错误: ${errorMessages}`);
+                    errorMsg = `模板错误详情:\n${errorMessages}`;
                 }
-                throw error;
+                // Show debug modal automatically on error
+                setShowDebug(true);
+                throw new Error(errorMsg);
             }
 
             const docxBlob = doc.getZip().generate({
@@ -211,20 +209,24 @@ export default function App() {
                     // Upload file
                     const tokens = await bitable.base.batchUploadFile([file]);
                     
-                    // Get current attachments to append
-                    const currentVal = await table.getCellValue(attachField.id, selection.recordId) as any[] || [];
-                    
-                    // Construct new value
-                    // The SDK expects { token, name, type } usually for writing, but let's check exact type
-                    // Actually for setting value, we often need the full object or at least what the API expects.
-                    // tokens[0] is the file token (string).
-                    
                     const newAttachment = {
                         token: tokens[0],
                         name: fileName,
                         type: 'application/pdf',
-                        timeStamp: Date.now() // Optional
+                        timeStamp: Date.now()
                     };
+                    
+                    // Get current attachments to append
+                    // Use getCellValue for consistency
+                    let currentVal: any[] = [];
+                    try {
+                        const rawVal = await table.getCellValue(attachField.id, selection.recordId);
+                        if (Array.isArray(rawVal)) {
+                            currentVal = rawVal;
+                        }
+                    } catch (e) {
+                        console.warn("Failed to get current attachments", e);
+                    }
                     
                     await table.setCellValue(attachField.id, selection.recordId, [...currentVal, newAttachment]);
                     Toast.success('成功！PDF已生成并上传。');
@@ -232,7 +234,7 @@ export default function App() {
             }
         } catch (err: any) {
             console.error(err);
-            Toast.error('处理失败: ' + err.message);
+            Toast.error({ content: '处理失败: ' + err.message, duration: 5 });
         } finally {
             setLoading(false);
             setStatus('');
@@ -280,7 +282,7 @@ export default function App() {
             </Upload>
             <div style={{ marginTop: 10 }}>
                 <Text type="secondary">
-                    模板说明：使用 <Text code>{`{{字段名}}`}</Text> 作为占位符，例如 <Text code>{`{{姓名}}`}</Text>。
+                    模板说明：使用 <Text code>{`{{字段名}}`}</Text> 作为占位符。
                 </Text>
             </div>
         </Card>
@@ -299,8 +301,37 @@ export default function App() {
                 {loading ? status || '处理中...' : '生成PDF并回写到附件'}
             </Button>
             {status && <Text style={{ display: 'block', marginTop: 10, textAlign: 'center' }}>{status}</Text>}
+            
+            <div style={{ marginTop: 10, textAlign: 'right' }}>
+                <Button 
+                    type="tertiary" 
+                    icon={<IconHelpCircle />} 
+                    size="small"
+                    onClick={() => setShowDebug(true)}
+                >
+                    查看调试数据
+                </Button>
+            </div>
         </Card>
       </Space>
+
+      <Modal
+        title="调试数据 (Record Data)"
+        visible={showDebug}
+        onOk={() => setShowDebug(false)}
+        onCancel={() => setShowDebug(false)}
+        width={600}
+      >
+        <Paragraph>
+            以下是读取到的当前行数据，请确保Word模板中的 <Text code>{`{{keys}}`}</Text> 与下方的 Key 一致。
+        </Paragraph>
+        <TextArea 
+            value={debugData || '暂无数据，请先点击生成按钮'} 
+            autosize 
+            readonly 
+            style={{ fontFamily: 'monospace', fontSize: 12, minHeight: 200 }} 
+        />
+      </Modal>
 
       {/* Hidden container for rendering */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '210mm', background: 'white' }}>
