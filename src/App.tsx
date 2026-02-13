@@ -1,3 +1,6 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { bitable } from '@lark-base-open/js-sdk';
+import type { IField, ITable } from '@lark-base-open/js-sdk';
 import { Button, Toast, Upload, Typography, Card, Space, Spin, Modal, TextArea } from '@douyinfe/semi-ui';
 import { IconUpload, IconFile, IconHelpCircle } from '@douyinfe/semi-icons';
 import PizZip from 'pizzip';
