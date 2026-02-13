@@ -132,13 +132,14 @@ export default function App() {
             });
 
             try {
-                doc.render(recordData);
+                doc.setData(recordData);
+                doc.render();
             } catch (error: any) {
                 // Improved error handling
                 let errorMsg = error.message;
                 if (error.properties && error.properties.errors instanceof Array) {
-                    const errorMessages = error.properties.errors.map(function (error: any) {
-                        return error.properties.explanation;
+                    const errorMessages = error.properties.errors.map(function (err: any) {
+                        return err.properties.explanation;
                     }).join("\n");
                     errorMsg = `模板错误详情:\n${errorMessages}`;
                 }
