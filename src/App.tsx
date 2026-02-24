@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { bitable } from '@lark-base-open/js-sdk';
 import type { IField, ITable } from '@lark-base-open/js-sdk';
-import { Button, Toast, Upload, Typography, Card, Space, Spin, Modal, TextArea } from '@douyinfe/semi-ui';
+import { Button, Toast, Upload, Typography, Card, Space, Spin, Modal, TextArea, Select } from '@douyinfe/semi-ui';
 import { IconUpload, IconFile, IconHelpCircle } from '@douyinfe/semi-icons';
 import PizZip from 'pizzip';
 import { renderAsync } from 'docx-preview';
@@ -56,6 +56,8 @@ const formatCellValue = (val: any): string => {
 export default function App() {
   const [table, setTable] = useState<ITable | null>(null);
   const [fields, setFields] = useState<IField[]>([]);
+  const [attachmentFields, setAttachmentFields] = useState<{ label: string, value: string }[]>([]);
+  const [selectedAttachFieldId, setSelectedAttachFieldId] = useState<string>('');
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
@@ -73,6 +75,19 @@ export default function App() {
           setTable(table);
           const fieldList = await table.getFieldList();
           setFields(fieldList);
+          
+          // Get attachment fields
+          const attachFields = await table.getFieldListByType(17);
+          const attachOptions = await Promise.all(attachFields.map(async f => ({
+              label: await f.getName(),
+              value: f.id
+          })));
+          setAttachmentFields(attachOptions);
+          
+          if (attachOptions.length > 0) {
+              setSelectedAttachFieldId(attachOptions[0].value);
+          }
+          
           Toast.success('数据已刷新，检测到 ' + fieldList.length + ' 个字段');
       }
     } catch (e) {
@@ -258,51 +273,51 @@ export default function App() {
                 // 4. Upload to Lark
                 setStatus('正在上传PDF到多维表格...');
                 
-                // Find attachment field
-                // Note: field type 17 is Attachment
-                const attachmentFields = await table.getFieldListByType(17);
-                if (attachmentFields.length === 0) {
-                    Toast.warning('未找到附件字段，无法回写。正在下载PDF...');
+                if (!selectedAttachFieldId) {
+                    Toast.warning('请先选择一个附件字段');
                     pdf.save(`generated_${selection.recordId}.pdf`);
-                } else {
-                    const attachField = attachmentFields[0];
-                    const attachFieldName = await attachField.getName();
-                    const fileName = `Generated_${selection.recordId}.pdf`;
-                    const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-                    
-                    // Upload file
-                    setStatus('正在上传文件内容...');
-                    const tokens = await bitable.base.batchUploadFile([file]);
-                    if (!tokens || tokens.length === 0) {
-                        throw new Error('文件上传失败，未能获取token');
-                    }
-                    
-                    const newAttachment = {
-                        token: tokens[0],
-                        name: fileName,
-                        type: 'application/pdf',
-                        timeStamp: Date.now()
-                    };
-                    
-                    // Get current attachments to append
-                    let currentVal: any[] = [];
-                    try {
-                        const rawVal = await table.getCellValue(attachField.id, selection.recordId);
-                        if (Array.isArray(rawVal)) {
-                            // Filter out any invalid items just in case
-                            currentVal = rawVal.filter(item => item && item.token);
-                        }
-                    } catch (e) {
-                        console.warn("Failed to get current attachments", e);
-                    }
-                    
-                    setStatus(`正在回写到字段 "${attachFieldName}"...`);
-                    const finalAttachments = [...currentVal, newAttachment];
-                    console.log('Writing attachments:', finalAttachments);
-
-                    await table.setCellValue(attachField.id, selection.recordId, finalAttachments);
-                    Toast.success({ content: `成功！PDF已上传到字段【${attachFieldName}】`, duration: 5 });
+                    return;
                 }
+
+                // Get field name for display
+                const selectedOption = attachmentFields.find(f => f.value === selectedAttachFieldId);
+                const attachFieldName = selectedOption ? selectedOption.label : '未知字段';
+
+                const fileName = `Generated_${selection.recordId}.pdf`;
+                const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+                
+                // Upload file
+                setStatus('正在上传文件内容...');
+                const tokens = await bitable.base.batchUploadFile([file]);
+                if (!tokens || tokens.length === 0) {
+                    throw new Error('文件上传失败，未能获取token');
+                }
+                
+                const newAttachment = {
+                    token: tokens[0],
+                    name: fileName,
+                    type: 'application/pdf',
+                    timeStamp: Date.now()
+                };
+                
+                // Get current attachments to append
+                let currentVal: any[] = [];
+                try {
+                    const rawVal = await table.getCellValue(selectedAttachFieldId, selection.recordId);
+                    if (Array.isArray(rawVal)) {
+                        // Filter out any invalid items just in case
+                        currentVal = rawVal.filter(item => item && item.token);
+                    }
+                } catch (e) {
+                    console.warn("Failed to get current attachments", e);
+                }
+                
+                setStatus(`正在回写到字段 "${attachFieldName}"...`);
+                const finalAttachments = [...currentVal, newAttachment];
+                console.log('Writing attachments:', finalAttachments);
+
+                await table.setCellValue(selectedAttachFieldId, selection.recordId, finalAttachments);
+                Toast.success({ content: `成功！PDF已上传到字段【${attachFieldName}】`, duration: 5 });
             }
         } catch (err: any) {
             console.error(err);
@@ -323,7 +338,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.0)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.1)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
@@ -331,8 +346,15 @@ export default function App() {
           <Space>
             <Button onClick={init} size="small" type="tertiary">刷新表格数据</Button>
             <Text>
-                请确保当前多维表格中有一行记录被选中，并且表中有一个附件字段用于接收结果。
+                请选择目标附件字段：
             </Text>
+            <Select 
+                optionList={attachmentFields} 
+                value={selectedAttachFieldId} 
+                onChange={(v) => setSelectedAttachFieldId(v as string)}
+                style={{ width: 150 }}
+                placeholder="选择附件字段"
+            />
           </Space>
         </Card>
 
