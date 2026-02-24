@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { bitable } from '@lark-base-open/js-sdk';
 import type { IField, ITable } from '@lark-base-open/js-sdk';
-import { Button, Toast, Upload, Typography, Card, Space, Spin, Modal, TextArea, Select } from '@douyinfe/semi-ui';
-import { IconUpload, IconFile, IconHelpCircle } from '@douyinfe/semi-icons';
+import { Button, Toast, Upload, Typography, Card, Space, Modal, TextArea, Select } from '@douyinfe/semi-ui';
+import { IconUpload, IconFile, IconHelpCircle, IconDownload } from '@douyinfe/semi-icons';
 import PizZip from 'pizzip';
+import { saveAs } from 'file-saver';
 import { renderAsync } from 'docx-preview';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -59,6 +60,8 @@ export default function App() {
   const [attachmentFields, setAttachmentFields] = useState<{ label: string, value: string }[]>([]);
   const [selectedAttachFieldId, setSelectedAttachFieldId] = useState<string>('');
   const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [generatedPdf, setGeneratedPdf] = useState<Blob | null>(null);
+  const [generatedName, setGeneratedName] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [debugData, setDebugData] = useState<string>('');
@@ -273,9 +276,13 @@ export default function App() {
                 // 4. Upload to Lark
                 setStatus('正在上传PDF到多维表格...');
                 
+                const fileName = `Generated_${selection.recordId}.pdf`;
+                setGeneratedName(fileName);
+                setGeneratedPdf(pdfBlob);
+
                 if (!selectedAttachFieldId) {
                     Toast.warning('请先选择一个附件字段');
-                    pdf.save(`generated_${selection.recordId}.pdf`);
+                    saveAs(pdfBlob, fileName);
                     return;
                 }
 
@@ -283,7 +290,6 @@ export default function App() {
                 const selectedOption = attachmentFields.find(f => f.value === selectedAttachFieldId);
                 const attachFieldName = selectedOption ? selectedOption.label : '未知字段';
 
-                const fileName = `Generated_${selection.recordId}.pdf`;
                 const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
                 
                 // Upload file
@@ -317,7 +323,24 @@ export default function App() {
                 console.log('Writing attachments:', finalAttachments);
 
                 await table.setCellValue(selectedAttachFieldId, selection.recordId, finalAttachments);
-                Toast.success({ content: `成功！PDF已上传到字段【${attachFieldName}】`, duration: 5 });
+                
+                // --- Verification Step ---
+                setStatus('正在验证回写结果...');
+                await new Promise(r => setTimeout(r, 1000)); // wait a bit
+                const verifyVal = await table.getCellValue(selectedAttachFieldId, selection.recordId);
+                let verified = false;
+                if (Array.isArray(verifyVal)) {
+                    verified = verifyVal.some((item: any) => item.token === tokens[0]);
+                }
+                
+                if (verified) {
+                    Toast.success({ content: `成功！PDF已上传到字段【${attachFieldName}】`, duration: 5 });
+                } else {
+                    console.error('Verify failed. Expected token:', tokens[0], 'Got:', verifyVal);
+                    Toast.warning({ content: `警告：似乎未能写入成功，请尝试手动下载。`, duration: 8 });
+                    // Auto download as fallback
+                    saveAs(pdfBlob, fileName);
+                }
             }
         } catch (err: any) {
             console.error(err);
@@ -338,7 +361,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.1)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.2)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
@@ -400,14 +423,26 @@ export default function App() {
             {status && <Text style={{ display: 'block', marginTop: 10, textAlign: 'center' }}>{status}</Text>}
             
             <div style={{ marginTop: 10, textAlign: 'right' }}>
-                <Button 
-                    type="tertiary" 
-                    icon={<IconHelpCircle />} 
-                    size="small"
-                    onClick={() => setShowDebug(true)}
-                >
-                    查看调试数据
-                </Button>
+                <Space>
+                    {generatedPdf && (
+                        <Button 
+                            type="secondary"
+                            icon={<IconDownload />}
+                            size="small"
+                            onClick={() => saveAs(generatedPdf, generatedName)}
+                        >
+                            下载PDF
+                        </Button>
+                    )}
+                    <Button 
+                        type="tertiary" 
+                        icon={<IconHelpCircle />} 
+                        size="small"
+                        onClick={() => setShowDebug(true)}
+                    >
+                        查看调试数据
+                    </Button>
+                </Space>
             </div>
         </Card>
       </Space>
