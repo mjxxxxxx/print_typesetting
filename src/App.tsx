@@ -145,41 +145,71 @@ export default function App() {
             if (!content) return;
 
             const zip = new PizZip(content as string | ArrayBuffer);
-            const doc = new Docxtemplater(zip, {
-                paragraphLoop: true,
-                linebreaks: true,
-                nullGetter: () => { return ""; } // return empty string for missing values
-            });
-
-            try {
-                doc.setData(recordData);
-                doc.render();
-            } catch (error: any) {
-                // Improved error handling
-                console.log('Docxtemplater error:', error);
-                let errorMsg = error.message;
-                let detailedInfo = '';
-
-                if (error.properties && error.properties.errors instanceof Array) {
-                    const errorMessages = error.properties.errors.map(function (err: any) {
-                        return err.properties.explanation;
-                    }).join("\n");
-                    errorMsg = `模板错误详情:\n${errorMessages}`;
-                    detailedInfo = JSON.stringify(error.properties.errors, null, 2);
-                } else {
-                    detailedInfo = JSON.stringify(error, null, 2);
-                    if (detailedInfo === '{}') detailedInfo = String(error);
-                }
-
-                // Append detailed info to debug data for viewing
-                setDebugData(prev => prev + '\n\n=== 错误详情 ===\n' + errorMsg + '\n' + detailedInfo);
+            
+            // --- Custom "Python-like" Replacement Logic ---
+            // Instead of using docxtemplater (which is strict), we manually parse the XML
+            // This mimics the user's Python script behavior: iterating text nodes and replacing placeholders.
+            
+            const xmlFile = "word/document.xml";
+            if (zip.file(xmlFile)) {
+                const xmlStr = zip.file(xmlFile).asText();
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlStr, "text/xml");
+                const texts = xmlDoc.getElementsByTagName("w:t");
                 
-                // Show debug modal automatically on error
-                setShowDebug(true);
-                throw new Error(errorMsg);
-            }
+                let replacedCount = 0;
+                
+                for (let i = 0; i < texts.length; i++) {
+                    const node = texts[i];
+                    let text = node.textContent || '';
+                    
+                    // Regex to match {{key}} or {key}
+                    // Captures the key inside the braces
+                    const regex = /\{+([^{}]+)\}+/g;
+                    
+                        if (text.match(regex)) {
+                            // Helper to find value case-insensitively
+                            const findValue = (k: string) => {
+                                let v = recordData[k];
+                                if (v === undefined) {
+                                    const lowerKey = k.toLowerCase();
+                                    const foundKey = Object.keys(recordData).find(key => key.toLowerCase() === lowerKey);
+                                    if (foundKey) v = recordData[foundKey];
+                                }
+                                return v;
+                            };
 
-            const docxBlob = doc.getZip().generate({
+                            const newText = text.replace(regex, (match, key) => {
+                                // Trim whitespace from key just in case
+                                key = key.trim();
+                                
+                                let val = findValue(key);
+                                
+                                if (val !== undefined) {
+                                    replacedCount++;
+                                    return String(val);
+                                } else {
+                                    console.warn(`Placeholder not found: ${key}`);
+                                    return match; // Keep original if not found
+                                }
+                            });
+                            node.textContent = newText;
+                        }
+                    }
+                }
+                
+                console.log(`Replaced ${replacedCount} placeholders.`);
+                
+                // Serialize back to XML
+                const serializer = new XMLSerializer();
+                const newXml = serializer.serializeToString(xmlDoc);
+                zip.file(xmlFile, newXml);
+            } else {
+                throw new Error("Invalid docx: missing word/document.xml");
+            }
+            // ---------------------------------------------
+
+            const docxBlob = zip.generate({
                 type: 'blob',
                 mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             });
@@ -286,7 +316,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v1.5)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v1.6 - Python Mode)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
