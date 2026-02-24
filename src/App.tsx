@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+我的import React, { useState, useEffect, useRef } from 'react';
 import { bitable } from '@lark-base-open/js-sdk';
 import type { IField, ITable } from '@lark-base-open/js-sdk';
 import { Button, Toast, Upload, Typography, Card, Space, Spin, Modal, TextArea } from '@douyinfe/semi-ui';
@@ -156,15 +156,24 @@ export default function App() {
                 doc.render();
             } catch (error: any) {
                 // Improved error handling
+                console.log('Docxtemplater error:', error);
                 let errorMsg = error.message;
+                let detailedInfo = '';
+
                 if (error.properties && error.properties.errors instanceof Array) {
                     const errorMessages = error.properties.errors.map(function (err: any) {
                         return err.properties.explanation;
                     }).join("\n");
                     errorMsg = `模板错误详情:\n${errorMessages}`;
+                    detailedInfo = JSON.stringify(error.properties.errors, null, 2);
                 } else {
-                    errorMsg = JSON.stringify(error, null, 2);
+                    detailedInfo = JSON.stringify(error, null, 2);
+                    if (detailedInfo === '{}') detailedInfo = String(error);
                 }
+
+                // Append detailed info to debug data for viewing
+                setDebugData(prev => prev + '\n\n=== 错误详情 ===\n' + errorMsg + '\n' + detailedInfo);
+                
                 // Show debug modal automatically on error
                 setShowDebug(true);
                 throw new Error(errorMsg);
@@ -277,7 +286,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v1.4)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v1.5)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
