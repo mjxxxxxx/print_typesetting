@@ -14,6 +14,24 @@ const { Title, Text, Paragraph } = Typography;
 // Helper to format cell value to string
 const formatCellValue = (val: any): string => {
     if (val === null || val === undefined) return '';
+
+    // Handle timestamps (13 digits)
+    // Heuristic: Check if it's a number or string looking like a ms timestamp (e.g. > year 2000)
+    const isTimestamp = (v: any) => {
+        const num = Number(v);
+        // 946684800000 is year 2000
+        return !isNaN(num) && num > 946684800000 && String(num).length === 13;
+    };
+
+    if (isTimestamp(val)) {
+        try {
+            const date = new Date(Number(val));
+            return date.toLocaleString('zh-CN', { hour12: false });
+        } catch (e) {
+            // ignore
+        }
+    }
+
     if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') return String(val);
     
     // Handle Arrays (MultiSelect, User, etc.)
@@ -255,7 +273,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v1.2)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v1.3)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
