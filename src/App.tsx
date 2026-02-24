@@ -66,21 +66,23 @@ export default function App() {
   // Hidden container for rendering docx to generate PDF
   const previewRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const selection = await bitable.base.getSelection();
-        if (selection.tableId) {
-            const table = await bitable.base.getTableById(selection.tableId);
-            setTable(table);
-            const fieldList = await table.getFieldList();
-            setFields(fieldList);
-        }
-      } catch (e) {
-        console.error(e);
-        setStatus('初始化失败，请在多维表格中运行');
+  const init = async () => {
+    try {
+      const selection = await bitable.base.getSelection();
+      if (selection.tableId) {
+          const table = await bitable.base.getTableById(selection.tableId);
+          setTable(table);
+          const fieldList = await table.getFieldList();
+          setFields(fieldList);
+          Toast.success('数据已刷新，检测到 ' + fieldList.length + ' 个字段');
       }
-    };
+    } catch (e) {
+      console.error(e);
+      setStatus('初始化失败，请在多维表格中运行');
+    }
+  };
+
+  useEffect(() => {
     init();
   }, []);
 
@@ -160,6 +162,8 @@ export default function App() {
                         return err.properties.explanation;
                     }).join("\n");
                     errorMsg = `模板错误详情:\n${errorMessages}`;
+                } else {
+                    errorMsg = JSON.stringify(error, null, 2);
                 }
                 // Show debug modal automatically on error
                 setShowDebug(true);
@@ -273,14 +277,17 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v1.3)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v1.4)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
           <Title heading={5}>1. 准备工作</Title>
-          <Text>
-            请确保当前多维表格中有一行记录被选中，并且表中有一个附件字段用于接收结果。
-          </Text>
+          <Space>
+            <Button onClick={init} size="small" type="tertiary">刷新表格数据</Button>
+            <Text>
+                请确保当前多维表格中有一行记录被选中，并且表中有一个附件字段用于接收结果。
+            </Text>
+          </Space>
         </Card>
 
         <Card>
