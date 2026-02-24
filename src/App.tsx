@@ -266,11 +266,16 @@ export default function App() {
                     pdf.save(`generated_${selection.recordId}.pdf`);
                 } else {
                     const attachField = attachmentFields[0];
+                    const attachFieldName = await attachField.getName();
                     const fileName = `Generated_${selection.recordId}.pdf`;
                     const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
                     
                     // Upload file
+                    setStatus('正在上传文件内容...');
                     const tokens = await bitable.base.batchUploadFile([file]);
+                    if (!tokens || tokens.length === 0) {
+                        throw new Error('文件上传失败，未能获取token');
+                    }
                     
                     const newAttachment = {
                         token: tokens[0],
@@ -280,19 +285,23 @@ export default function App() {
                     };
                     
                     // Get current attachments to append
-                    // Use getCellValue for consistency
                     let currentVal: any[] = [];
                     try {
                         const rawVal = await table.getCellValue(attachField.id, selection.recordId);
                         if (Array.isArray(rawVal)) {
-                            currentVal = rawVal;
+                            // Filter out any invalid items just in case
+                            currentVal = rawVal.filter(item => item && item.token);
                         }
                     } catch (e) {
                         console.warn("Failed to get current attachments", e);
                     }
                     
-                    await table.setCellValue(attachField.id, selection.recordId, [...currentVal, newAttachment]);
-                    Toast.success('成功！PDF已生成并上传。');
+                    setStatus(`正在回写到字段 "${attachFieldName}"...`);
+                    const finalAttachments = [...currentVal, newAttachment];
+                    console.log('Writing attachments:', finalAttachments);
+
+                    await table.setCellValue(attachField.id, selection.recordId, finalAttachments);
+                    Toast.success({ content: `成功！PDF已上传到字段【${attachFieldName}】`, duration: 5 });
                 }
             }
         } catch (err: any) {
@@ -314,7 +323,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v1.9)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.0)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
