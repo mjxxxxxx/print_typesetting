@@ -187,13 +187,19 @@ export default function App() {
                         if (text.match(regex)) {
                             // Helper to find value case-insensitively
                             const findValue = (k: string) => {
+                                // 1. Try exact match
                                 let v = recordData[k];
-                                if (v === undefined) {
-                                    const lowerKey = k.toLowerCase();
-                                    const foundKey = Object.keys(recordData).find(key => key.toLowerCase() === lowerKey);
-                                    if (foundKey) v = recordData[foundKey];
-                                }
-                                return v;
+                                if (v !== undefined) return v;
+
+                                // 2. Normalize key for fuzzy match (remove non-alphanumeric/Chinese)
+                                // e.g. "A= 一行一列" -> "一行一列", "🔒 一行一列" -> "一行一列"
+                                const normalize = (str: string) => str.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').toLowerCase();
+                                const normalizedK = normalize(k);
+
+                                const foundKey = Object.keys(recordData).find(key => normalize(key) === normalizedK);
+                                if (foundKey) return recordData[foundKey];
+                                
+                                return undefined;
                             };
 
                             const newText = text.replace(regex, (match, key) => {
@@ -361,7 +367,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.3)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.4)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
