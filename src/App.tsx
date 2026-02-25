@@ -4,7 +4,7 @@ import type { IField, ITable } from '@lark-base-open/js-sdk';
 import { Button, Toast, Upload, Typography, Card, Space, Modal, TextArea, Select } from '@douyinfe/semi-ui';
 import { IconUpload, IconFile, IconHelpCircle, IconDownload } from '@douyinfe/semi-icons';
 import PizZip from 'pizzip';
-import { saveAs } from 'file-saver';
+import saveAs from 'file-saver';
 import { renderAsync } from 'docx-preview';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -361,7 +361,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.2)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.3)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
