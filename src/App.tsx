@@ -191,14 +191,30 @@ export default function App() {
                                 let v = recordData[k];
                                 if (v !== undefined) return v;
 
-                                // 2. Normalize key for fuzzy match (remove non-alphanumeric/Chinese)
-                                // e.g. "A= 一行一列" -> "一行一列", "🔒 一行一列" -> "一行一列"
+                                // 2. Normalize key for fuzzy match
+                                // Remove all whitespace, non-word characters, Chinese punctuation, etc.
+                                // Keep only alphanumeric and Chinese characters
                                 const normalize = (str: string) => str.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').toLowerCase();
                                 const normalizedK = normalize(k);
 
-                                const foundKey = Object.keys(recordData).find(key => normalize(key) === normalizedK);
+                                // Debug log
+                                // console.log(`Searching for key: "${k}" (normalized: "${normalizedK}")`);
+
+                                const foundKey = Object.keys(recordData).find(key => {
+                                    const normalizedKey = normalize(key);
+                                    // console.log(`Comparing with: "${key}" (normalized: "${normalizedKey}")`);
+                                    return normalizedKey === normalizedK;
+                                });
+                                
                                 if (foundKey) return recordData[foundKey];
                                 
+                                // 3. Super Fuzzy: Check if one contains the other (risky but helpful for "A= Name" vs "Name")
+                                const foundKeyContains = Object.keys(recordData).find(key => {
+                                    const normalizedKey = normalize(key);
+                                    return normalizedKey.includes(normalizedK) || normalizedK.includes(normalizedKey);
+                                });
+                                if (foundKeyContains) return recordData[foundKeyContains];
+
                                 return undefined;
                             };
 
@@ -212,7 +228,8 @@ export default function App() {
                                     replacedCount++;
                                     return String(val);
                                 } else {
-                                    console.warn(`Placeholder not found: ${key}`);
+                                    // Don't warn for empty placeholders, maybe they are just text
+                                    // console.warn(`Placeholder not found: ${key}`);
                                     return match; // Keep original if not found
                                 }
                             });
@@ -367,7 +384,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.4)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.5)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
