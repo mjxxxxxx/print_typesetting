@@ -54,6 +54,12 @@ const formatCellValue = (val: any): string => {
     return String(val);
 };
 
+declare global {
+    interface Window {
+        hasLoggedKeys: boolean;
+    }
+}
+
 export default function App() {
   const [table, setTable] = useState<ITable | null>(null);
   const [fields, setFields] = useState<IField[]>([]);
@@ -192,23 +198,24 @@ export default function App() {
                                 if (v !== undefined) return v;
 
                                 // 2. Normalize key for fuzzy match
-                                // Remove all whitespace, non-word characters, Chinese punctuation, etc.
-                                // Keep only alphanumeric and Chinese characters
                                 const normalize = (str: string) => str.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '').toLowerCase();
                                 const normalizedK = normalize(k);
 
-                                // Debug log
-                                // console.log(`Searching for key: "${k}" (normalized: "${normalizedK}")`);
+                                // 3. Log all available keys to console for debugging
+                                if (!window.hasLoggedKeys) {
+                                    console.log('Available Record Keys:', Object.keys(recordData));
+                                    console.log('Normalized Record Keys:', Object.keys(recordData).map(normalize));
+                                    window.hasLoggedKeys = true;
+                                }
 
                                 const foundKey = Object.keys(recordData).find(key => {
                                     const normalizedKey = normalize(key);
-                                    // console.log(`Comparing with: "${key}" (normalized: "${normalizedKey}")`);
                                     return normalizedKey === normalizedK;
                                 });
                                 
                                 if (foundKey) return recordData[foundKey];
                                 
-                                // 3. Super Fuzzy: Check if one contains the other (risky but helpful for "A= Name" vs "Name")
+                                // 4. Substring Match
                                 const foundKeyContains = Object.keys(recordData).find(key => {
                                     const normalizedKey = normalize(key);
                                     return normalizedKey.includes(normalizedK) || normalizedK.includes(normalizedKey);
@@ -384,7 +391,7 @@ export default function App() {
 
   return (
     <div style={{ padding: 20, maxWidth: 600, margin: '0 auto' }}>
-      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.5)</Text></Title>
+      <Title heading={3} style={{ marginBottom: 20 }}>多维表格排版打印 <Text type="secondary" size="small">(v2.6)</Text></Title>
       
       <Space direction="vertical" style={{ width: '100%' }} spacing="medium">
         <Card>
